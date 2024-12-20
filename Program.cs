@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 // получаем строку подключения из файла конфигурации
 string connection = builder.Configuration.GetConnectionString("DefaultConnection")!;
 // Получаем версию сервера. Только для MySQL.
-ServerVersion serverVersion = ServerVersion.AutoDetect(connection); 
+ServerVersion serverVersion = ServerVersion.AutoDetect(connection);
 // добавляем контекст ApplicationContext в качестве сервиса в приложение
 builder.Services.AddDbContext<ApplicationContext>(
             dbContextOptions => dbContextOptions
@@ -44,10 +44,19 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("EmployeeOnly", policy => policy.RequireRole("Admin"));
 });
 
+// Add Cors
+builder.Services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
+{
+    builder.AllowAnyOrigin()
+           .WithMethods("POST", "GET")
+           .AllowAnyHeader();
+}));
+
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options => {
+builder.Services.AddSwaggerGen(options =>
+{
     // using System.Reflection;
     var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
@@ -61,6 +70,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors("MyPolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();

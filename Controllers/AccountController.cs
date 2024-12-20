@@ -1,11 +1,13 @@
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using ApiTest.Models;
 using ApiTest.ViewModels;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -13,7 +15,8 @@ using Microsoft.IdentityModel.Tokens;
 namespace ApiTest.Controllers
 {
     [ApiController]
-    [Route("api/v1/[controller]/[action]")]
+    [EnableCors("MyPolicy")]
+    [Route("[controller]/[action]")]
     [Produces("application/json")]
     public class AccountController(ApplicationContext context) : Controller
     {
@@ -23,51 +26,35 @@ namespace ApiTest.Controllers
         /// <param name="model">RegistrationRequest</param>
         /// <returns>RegistrationResponse</returns>
         [HttpPost]
-        public async Task<RegistrationResponse> Registration([FromBody] RegistrationRequest model)
+        public async Task<ActionResult> Registration([FromBody] RegistrationRequest model)
         {
-            if (!ModelState.IsValid)
-            {
-                Dictionary<string, string[]> errorList = ModelState
-                .Where(x => x.Value.Errors.Count > 0)
-                .ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
-                );
-                return new RegistrationResponse
-                {
-                    ErrorList = errorList,
-                    Status = false
-                };
-            }
+            // Проверяем что такой пользователь существует
             User? user = await context.Users.FirstOrDefaultAsync(x => x.Email == model.Email);
             if (user is not null)
             {
-                Dictionary<string, string[]> errorList = new()
+                return BadRequest(new
                 {
-                    { "email", ["Email is already taken"]}
-                };
-                return new RegistrationResponse
-                {
-                    ErrorList = errorList,
-                    Status = false
-                };
+                    title = "One or more validation errors occurred.",
+                    status = 400,
+                    errors = new Dictionary<string, string[]>() { { "Email", ["Email is already taken"] } }
+                });
             }
 
-            
-            User newUser = new(model);
+            // Создаем нового пользователя с ролью "User" по умолчанию
+            User newUser = new(model) { Roles = context.Roles.FirstOrDefault(x => x.Name == "User") };
             context.Users.Add(newUser);
             context.SaveChanges();
 
-            // создаем один claim
+            // создаем один claim с ролью пользователя
             var claims = new List<Claim>
             {
-                new (ClaimsIdentity.DefaultRoleClaimType, "Admin"),
-                new(ClaimsIdentity.DefaultNameClaimType, "Test username")
+                new (ClaimsIdentity.DefaultRoleClaimType, newUser.Roles.Name)
             };
-            return new RegistrationResponse(){
+            return Json(new RegistrationResponse()
+            {
                 Token = AuthenticateJWT(claims),
                 Status = true
-            };
+            });
         }
 
         [HttpGet]
@@ -98,6 +85,14 @@ namespace ApiTest.Controllers
             );
             JwtSecurityTokenHandler handler = new();
             return handler.WriteToken(jwt);
+        }
+    
+        private string GetRefreshToken()
+        {
+            var randomNumber = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToHexString(randomNumber);
         }
     }
 }
