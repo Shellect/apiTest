@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -8,6 +7,7 @@ using ApiTest.ViewModels;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -26,7 +26,7 @@ namespace ApiTest.Controllers
         /// <param name="model">RegistrationRequest</param>
         /// <returns>RegistrationResponse</returns>
         [HttpPost]
-        public async Task<ActionResult> Registration([FromBody] RegistrationRequest model)
+        public async Task<IActionResult> Registration([FromBody] RegistrationRequest model)
         {
             // Проверяем что такой пользователь существует
             User? user = await context.Users.FirstOrDefaultAsync(x => x.Email == model.Email);
@@ -57,10 +57,53 @@ namespace ApiTest.Controllers
             });
         }
 
-        [HttpGet]
-        public IActionResult Login()
+        
+        /// <summary>
+        /// User login method
+        /// </summary>
+        /// <param name="model"></param>
+        /// <returns></returns>
+        [HttpPost]
+        public async Task<IActionResult> Login([FromBody] LoginRequest model)
         {
-            return Ok("<h1>Страница логина</h1>");
+            // Проверяем что такой пользователь существует
+            User? user = await context.Users
+                .Include(x=>x.Roles)
+                .FirstOrDefaultAsync(x => x.Email == model.Email);
+            if (user is null)
+            {
+                return BadRequest(new
+                {
+                    title = "One or more validation errors occurred.",
+                    status = 400,
+                    errors = new Dictionary<string, string[]>() { { "Email", ["Email or password is incorrect"] } }
+                });
+            }
+
+            // Проверяем что пароли совпадают
+            PasswordHasher<User> hasher = new();
+            PasswordVerificationResult result = hasher.VerifyHashedPassword(user, user.PasswordHash, model.Password);
+            if (result == 0)
+            {
+                return BadRequest(new
+                {
+                    title = "One or more validation errors occurred.",
+                    status = 400,
+                    errors = new Dictionary<string, string[]>() { { "Email", ["Email or password is incorrect"] } }
+                });
+            }
+
+            // Создаем один claim с ролью пользователя
+            var claims = new List<Claim>
+            {
+                new (ClaimsIdentity.DefaultRoleClaimType, user.Roles.Name)
+            };
+            return Json(new RegistrationResponse()
+            {
+                Token = AuthenticateJWT(claims),
+                Status = true
+            });
+
         }
 
         private async void Authenticate(List<Claim> claims)
@@ -86,7 +129,7 @@ namespace ApiTest.Controllers
             JwtSecurityTokenHandler handler = new();
             return handler.WriteToken(jwt);
         }
-    
+
         private string GetRefreshToken()
         {
             var randomNumber = new byte[32];
