@@ -45,10 +45,12 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Add Cors
-builder.Services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
+builder.Services.AddCors(o => o.AddPolicy("MyPolicy", b =>
 {
-    builder.AllowAnyOrigin()
+    string allowOrigins = builder.Configuration.GetValue<string>("AllowOrigins");
+    b.WithOrigins(allowOrigins)
            .WithMethods("POST", "GET")
+           .AllowCredentials()
            .AllowAnyHeader();
 }));
 

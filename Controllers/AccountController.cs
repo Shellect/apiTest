@@ -40,10 +40,23 @@ namespace ApiTest.Controllers
                 });
             }
 
+            string refreshToken = GetRefreshToken();
+
             // Создаем нового пользователя с ролью "User" по умолчанию
-            User newUser = new(model) { Roles = context.Roles.FirstOrDefault(x => x.Name == "User") };
-            context.Users.Add(newUser);
+            User newUser = new(model)
+            {
+                Roles = context.Roles.FirstOrDefault(x => x.Name == "User"),
+                RefreshToken = refreshToken
+            };
             context.SaveChanges();
+
+            // Добавляем в http-only cookie refresh токен
+            CookieOptions options = new()
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddDays(7)
+            };
+            Response.Cookies.Append("refreshToken", refreshToken, options);
 
             // создаем один claim с ролью пользователя
             var claims = new List<Claim>
@@ -57,7 +70,7 @@ namespace ApiTest.Controllers
             });
         }
 
-        
+
         /// <summary>
         /// User login method
         /// </summary>
@@ -68,7 +81,7 @@ namespace ApiTest.Controllers
         {
             // Проверяем что такой пользователь существует
             User? user = await context.Users
-                .Include(x=>x.Roles)
+                .Include(x => x.Roles)
                 .FirstOrDefaultAsync(x => x.Email == model.Email);
             if (user is null)
             {
@@ -79,6 +92,11 @@ namespace ApiTest.Controllers
                     errors = new Dictionary<string, string[]>() { { "Email", ["Email or password is incorrect"] } }
                 });
             }
+
+            string refreshToken = GetRefreshToken();
+            user.RefreshToken = refreshToken;
+            context.Update(user);
+            await context.SaveChangesAsync();
 
             // Проверяем что пароли совпадают
             PasswordHasher<User> hasher = new();
@@ -93,6 +111,15 @@ namespace ApiTest.Controllers
                 });
             }
 
+            // Добавляем в http-only cookie refresh токен
+            CookieOptions options = new()
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddDays(7)
+            };
+            Response.Cookies.Append("refreshToken", refreshToken, options);
+
+
             // Создаем один claim с ролью пользователя
             var claims = new List<Claim>
             {
@@ -105,6 +132,37 @@ namespace ApiTest.Controllers
             });
 
         }
+
+
+        /// <summary>
+        /// User refresh token method
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet]
+        public async Task<IActionResult> Refresh()
+        {
+            string? refreshToken = Request.Cookies["refreshToken"];
+            Console.WriteLine(refreshToken);
+            User? user = await context.Users
+                .Include(x => x.Roles)
+                .FirstOrDefaultAsync(x => x.RefreshToken == refreshToken);
+            if (user is null)
+            {
+                return BadRequest();
+            }
+
+            // создаем один claim с ролью пользователя
+            var claims = new List<Claim>
+            {
+                new (ClaimsIdentity.DefaultRoleClaimType, user.Roles.Name)
+            };
+            return Json(new RegistrationResponse()
+            {
+                Token = AuthenticateJWT(claims),
+                Status = true
+            });
+        }
+
 
         private async void Authenticate(List<Claim> claims)
         {

@@ -12,7 +12,7 @@ namespace ApiTest.Controllers
         public IActionResult Index(string username = "")
         {
             ClaimsPrincipal user = HttpContext.User;
-            return Ok("All good");
+            return Ok("{\"text\": \"All good\"}");
         }
 
         [Authorize(JwtBearerDefaults.AuthenticationScheme, Policy = "EmployeeOnly")]
