@@ -34,7 +34,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = "your_issuer",
                 ValidAudience = "your_audience",
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("Qard/yE2/6KwgSLxKIs9u9dhljaBVARSYQFlqKdyFQ0="))
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("Qard/yE2/6KwgSLxKIs9u9dhljaBVARSYQFlqKdyFQ0=")),
+                ClockSkew = TimeSpan.FromMinutes(1) // Погрешность времени
             };
         });
 

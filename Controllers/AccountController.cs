@@ -48,6 +48,7 @@ namespace ApiTest.Controllers
                 Roles = context.Roles.FirstOrDefault(x => x.Name == "User"),
                 RefreshToken = refreshToken
             };
+            context.Users.Add(newUser);
             context.SaveChanges();
 
             // Добавляем в http-only cookie refresh токен
@@ -174,7 +175,7 @@ namespace ApiTest.Controllers
 
         private string AuthenticateJWT(List<Claim> claims)
         {
-            DateTime expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(2));
+            DateTime expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(1));
             SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes("Qard/yE2/6KwgSLxKIs9u9dhljaBVARSYQFlqKdyFQ0="));
             SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
             JwtSecurityToken jwt = new(

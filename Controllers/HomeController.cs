@@ -18,7 +18,7 @@ namespace ApiTest.Controllers
         [Authorize(JwtBearerDefaults.AuthenticationScheme, Policy = "EmployeeOnly")]
         public IActionResult Test()
         {
-            return Ok("All good");
+            return Ok("{\"text\": \"All good\"}");
         }
     }
 }
